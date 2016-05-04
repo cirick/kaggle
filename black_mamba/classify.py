@@ -1,24 +1,22 @@
 __author__ = 'cririck'
 
+import os
 import numpy as np
 import pandas as pd
 import seaborn as sns
 
-from sklearn.linear_model import LogisticRegression
-from sklearn.svm import SVC
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier, AdaBoostClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.cross_validation import cross_val_score
-from sklearn.neural_network import BernoulliRBM
-from sklearn.pipeline import Pipeline
-
-from sklearn import preprocessing
 from sklearn.feature_selection import SelectPercentile, f_classif
 from sklearn import metrics
 from sklearn.cross_validation import train_test_split
+
 import matplotlib.pyplot as plt
 
-df = pd.read_csv('data.csv')
+data_file = os.path.join('data','data.csv')
+submission_file = os.path.join('data','submission.csv')
+
+df = pd.read_csv(data_file)
 
 # add any new fields or data manipulations
 df['away'] = df.matchup.str.contains('@')
@@ -54,10 +52,12 @@ def enum_label_data(df):
 
     return df
 
-
+# enumerate data with labels
 X_pred = enum_label_data(X_pred)
 X = enum_label_data(X)
 
+'''
+# compare probability distributions for made/miss vs feature
 label = 'shot_distance'
 prob_made = dict()
 prob_miss = dict()
@@ -79,14 +79,13 @@ plt.subplot(212)
 plt.bar(prob_miss.keys(),prob_miss.values())
 plt.show()
 
-'''
 seasonal_data = list()
 for i in X['season'].cat.categories:
     t = X['season'][X['season'] == i]
     seasonal_data.append(X[:][t])
 '''
 
-'''
+
 # feature selection
 selector = SelectPercentile(f_classif)
 selector.fit(X, y)
@@ -151,5 +150,4 @@ plt.show()
 
 #submit
 pred = model.predict(X_pred[feat_keep])
-pd.DataFrame({'shot_id': X_pred.shot_id, 'shot_made_flag': pred}).to_csv('submission.csv', index=False)
-'''
+pd.DataFrame({'shot_id': X_pred.shot_id, 'shot_made_flag': pred}).to_csv(submission_file, index=False)
