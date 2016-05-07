@@ -5,11 +5,14 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
+from sklearn import preprocessing
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.cross_validation import cross_val_score
 from sklearn.feature_selection import SelectPercentile, f_classif
 from sklearn import metrics
 from sklearn.cross_validation import train_test_split
+
+import tensorflow as tf
 
 import matplotlib.pyplot as plt
 
@@ -34,10 +37,6 @@ y = X['shot_made_flag']
 
 # all other features
 X = X.drop(['shot_made_flag'], axis=1)
-
-plt.figure()
-plt.scatter(X['loc_x'], X['loc_y'])
-
 
 def enum_label_data(df):
     labels_to_enum = ['action_type', 'combined_shot_type', 'season', 'shot_type',
@@ -115,8 +114,16 @@ plt.xticks(np.arange(len(idx)))
 # X = X[:, feat_keep_i]
 feat_keep = ['action_type', 'shot_distance', 'away', 'shot_zone_basic', 'shot_zone_range']
 X = X[feat_keep]
+# normalize
+X = preprocessing.scale(X)
+
+y = y.to_frame()
+y['make'] = (y['shot_made_flag'] == 1)*1
+y['miss'] = (y['shot_made_flag'] == 0)*1
+y = y[['make', 'miss']].as_matrix()
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.20, random_state=0)
 
+'''
 def hyper_param_selection():
     itr, scores = list(range(1, 20, 1)), []
     for i in itr:
@@ -129,8 +136,8 @@ def hyper_param_selection():
     plt.figure()
     sns.boxplot(x, np.array(scores).flatten())
 
-# normalize
-# X_train = preprocessing.scale(X_train)
+
+
 # classify
 model = RandomForestClassifier(n_jobs=-1, n_estimators=70, max_depth=7)
 model.fit(X_train, y_train)
@@ -151,3 +158,74 @@ plt.show()
 #submit
 pred = model.predict(X_pred[feat_keep])
 pd.DataFrame({'shot_id': X_pred.shot_id, 'shot_made_flag': pred}).to_csv(submission_file, index=False)
+'''
+
+'''
+from tensorflow.examples.tutorials.mnist import input_data
+mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
+
+m_X_train = mnist.train.images
+m_y_train = mnist.train.labels
+m_X_test = mnist.test.images
+m_y_test = mnist.test.labels
+'''
+
+num_features = X_train.shape[1]
+num_examples = X_train.shape[0]
+num_output = y_train.shape[1]
+
+num_hidden_nodes = 200
+
+num_lr_steps = 10
+init_lr = 0.1
+lr_drop = 1.5
+
+l2_rate = 1e-2
+num_epochs = 10
+batch_size = 25
+
+x = tf.placeholder(tf.float32, shape=[None, num_features])
+y_ = tf.placeholder(tf.float32, shape=[None, num_output])
+
+w1 = tf.Variable(tf.random_normal(shape=[num_features, num_hidden_nodes], dtype=tf.float32))
+b1 = tf.Variable(tf.random_normal(shape=[num_hidden_nodes], dtype=tf.float32))
+l1 = tf.nn.relu(tf.matmul(x, w1) + b1)
+
+w2 = tf.Variable(tf.random_normal(shape=[num_hidden_nodes, num_output], dtype=tf.float32))
+b2 = tf.Variable(tf.random_normal(shape=[num_output], dtype=tf.float32))
+y = tf.nn.softmax(tf.matmul(l1, w2) + b2)
+
+cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(y,y_))
+
+# evaluate
+correct_prediction = tf.equal(tf.argmax(y,1), tf.argmax(y_,1))
+accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+
+init = tf.initialize_all_variables()
+
+with tf.Session() as sess:
+    sess.run(init)
+
+    learning_rate = init_lr
+    for lr in xrange(num_lr_steps):
+        print 'LR: %f' % learning_rate
+        train_step = tf.train.GradientDescentOptimizer(learning_rate).minimize(cross_entropy)
+        learning_rate /= lr_drop
+
+        for epoch in xrange(num_epochs):
+            avg_cost = 0
+            batch = num_examples // batch_size
+            for i in xrange(batch):
+                start_idx = i*batch_size % num_examples
+                train_dict = {x: X_train[start_idx:start_idx+batch_size, :],
+                              y_: y_train[start_idx:start_idx+batch_size]}
+
+                sess.run(train_step, feed_dict=train_dict)
+                avg_cost += sess.run(cross_entropy, feed_dict=train_dict)/batch
+
+            print 'Epoch: %d' % (epoch+1), 'Cost: %f' % avg_cost
+
+        print 'Cost: %f' % accuracy.eval(feed_dict={x: X_test, y_: y_test} )
+
+
+
